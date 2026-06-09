@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CryptoMike Advisor — Análisis + Trading en Tiempo Real</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+  :root {
+    --bg:#0a0a0f;--surface:#111118;--surface2:#18181f;--border:#23232e;--border2:#2e2e3e;
+    --accent:#c8f135;--accent2:#9bbc1a;--text:#f0f0f5;--text2:#9090a8;--text3:#5a5a70;
+    --up:#4ade80;--down:#f87171;--warn:#fbbf24;--radius:12px;--radius-sm:8px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-serif;min-height:100vh;overflow-x:hidden;}
+
+  .header{border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:rgba(10,10,15,0.97);backdrop-filter:blur(12px);z-index:100;}
+  .logo{display:flex;align-items:center;gap:10px;}
+  .logo-mark{width:30px;height:30px;background:var(--accent);border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#0a0a0f;font-family:'Space Mono',monospace;}
+  .logo-text{font-size:14px;font-weight:600;}
+  .logo-sub{font-size:10px;color:var(--text3);font-family:'Space Mono',monospace;}
+  .status-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);display:inline-block;margin-right:5px;}
+  .status-dot.live{background:var(--up);box-shadow:0 0 6px var(--up);}
+  .status-text{font-size:11px;color:var(--text3);font-family:'Space Mono',monospace;}
+
+  .main{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - 61px);}
+  .sidebar{border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column;}
+  .content{display:flex;flex-direction:column;overflow:hidden;}
+
+  .s-label{font-size:10px;font-weight:600;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;padding:16px 16px 8px;}
+  .s-block{padding:0 14px 14px;border-bottom:1px solid var(--border);}
+
+  .field{margin-bottom:8px;}
+  .field label{font-size:10px;color:var(--text2);display:block;margin-bottom:4px;font-family:'Space Mono',monospace;}
+  .field input,.field select{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:7px 10px;color:var(--text);font-size:12px;font-family:'Space Mono',monospace;outline:none;transition:border-color .15s;}
+  .field input:focus,.field select:focus{border-color:var(--accent);}
+  .field input::placeholder{color:var(--text3);}
+  .field select option{background:var(--surface2);}
+
+  /* EXCHANGE SELECTOR */
+  .exchange-selector{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;}
+  .exch-btn{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:8px;cursor:pointer;font-size:12px;font-weight:600;font-family:'Space Mono',monospace;color:var(--text3);text-align:center;transition:all .15s;}
+  .exch-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(200,241,53,.06);}
+  .exch-btn:hover{border-color:var(--accent);color:var(--accent);}
+
+  /* API PANELS */
+  .api-panel{display:none;}
+  .api-panel.active{display:block;}
+
+  .btn{width:100%;padding:8px;border-radius:var(--radius-sm);border:none;cursor:pointer;font-size:12px;font-weight:600;font-family:'Space Grotesk',sans-serif;transition:all .15s;}
+  .btn-accent{background:var(--accent);color:#0a0a0f;}
+  .btn-accent:hover{background:var(--accent2);}
+  .btn-ghost{background:var(--surface2);color:var(--text2);border:1px solid var(--border2);}
+  .btn-ghost:hover{border-color:var(--accent);color:var(--accent);}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+  .btn-long{background:rgba(74,222,128,.15);color:var(--up);border:1px solid rgba(74,222,128,.3);font-size:13px;padding:10px;}
+  .btn-long:hover{background:rgba(74,222,128,.25);}
+  .btn-short{background:rgba(248,113,113,.15);color:var(--down);border:1px solid rgba(248,113,113,.3);font-size:13px;padding:10px;}
+  .btn-short:hover{background:rgba(248,113,113,.25);}
+  .btn-close{background:rgba(251,191,36,.15);color:var(--warn);border:1px solid rgba(251,191,36,.3);font-size:12px;}
+  .btn-close:hover{background:rgba(251,191,36,.25);}
+  .btn-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;}
+
+  .asset-card{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:6px;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:space-between;}
+  .asset-card:hover,.asset-card.active{border-color:var(--accent);background:rgba(200,241,53,.04);}
+  .asset-info{display:flex;align-items:center;gap:8px;}
+  .asset-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+  .asset-symbol{font-size:13px;font-weight:600;font-family:'Space Mono',monospace;}
+  .asset-name{font-size:10px;color:var(--text3);}
+  .asset-price{font-size:13px;font-weight:600;font-family:'Space Mono',monospace;}
+  .asset-change{font-size:10px;font-family:'Space Mono',monospace;}
+  .up{color:var(--up);} .down{color:var(--down);} .neutral{color:var(--text3);}
+
+  .cmd-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
+  .cmd-btn{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:7px 5px;cursor:pointer;font-size:10px;font-family:'Space Mono',monospace;color:var(--text2);text-align:center;transition:all .15s;}
+  .cmd-btn:hover{border-color:var(--accent);color:var(--accent);}
+
+  .risk-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:7px;}
+  .risk-result{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:8px;text-align:center;}
+  .risk-result-label{font-size:9px;color:var(--text3);margin-bottom:3px;font-family:'Space Mono',monospace;}
+  .risk-result-val{font-size:13px;font-weight:600;font-family:'Space Mono',monospace;color:var(--accent);}
+
+  .order-panel{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;}
+  .order-panel-title{font-size:10px;font-weight:600;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;font-family:'Space Mono',monospace;}
+  .order-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;}
+  .order-field label{font-size:9px;color:var(--text3);display:block;margin-bottom:3px;font-family:'Space Mono',monospace;}
+  .order-field input{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12px;font-family:'Space Mono',monospace;outline:none;}
+  .order-field input:focus{border-color:var(--accent);}
+  .lev-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  .lev-row label{font-size:10px;color:var(--text3);font-family:'Space Mono',monospace;white-space:nowrap;}
+  .lev-row input[type=range]{flex:1;accent-color:var(--accent);}
+  .lev-val{font-size:13px;font-weight:600;font-family:'Space Mono',monospace;color:var(--accent);min-width:36px;text-align:right;}
+
+  .position-card{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:6px;}
+  .pos-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+  .pos-symbol{font-size:13px;font-weight:600;font-family:'Space Mono',monospace;}
+  .pos-side{font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600;}
+  .pos-long{background:rgba(74,222,128,.15);color:var(--up);}
+  .pos-short{background:rgba(248,113,113,.15);color:var(--down);}
+  .pos-detail{font-size:11px;color:var(--text2);font-family:'Space Mono',monospace;line-height:1.6;}
+  .pos-pnl{font-size:14px;font-weight:600;font-family:'Space Mono',monospace;margin-top:4px;}
+
+  /* EXCHANGE BADGE */
+  .exch-badge{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-family:'Space Mono',monospace;padding:3px 8px;border-radius:20px;margin-bottom:8px;}
+  .exch-badge.bitunix{background:rgba(200,241,53,.1);color:var(--accent);border:1px solid rgba(200,241,53,.2);}
+  .exch-badge.bitmart{background:rgba(0,174,228,.1);color:#00aae4;border:1px solid rgba(0,174,228,.2);}
+
+  .chat-area{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px;}
+  .welcome{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;gap:14px;color:var(--text3);}
+  .welcome-icon{width:56px;height:56px;background:var(--surface2);border:1px solid var(--border2);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;}
+  .welcome h2{font-size:17px;color:var(--text2);font-weight:500;}
+  .welcome p{font-size:12px;line-height:1.6;max-width:340px;}
+  .welcome-cmds{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:6px;}
+  .welcome-cmd{background:var(--surface2);border:1px solid var(--border2);border-radius:20px;padding:4px 12px;font-size:11px;font-family:'Space Mono',monospace;color:var(--text2);cursor:pointer;transition:all .15s;}
+  .welcome-cmd:hover{border-color:var(--accent);color:var(--accent);}
+
+  .msg{display:flex;flex-direction:column;gap:4px;}
+  .msg-user{align-items:flex-end;}
+  .msg-ai{align-items:flex-start;}
+  .msg-label{font-size:9px;color:var(--text3);font-family:'Space Mono',monospace;letter-spacing:.08em;text-transform:uppercase;padding:0 4px;}
+  .msg-bubble{max-width:88%;border-radius:var(--radius);padding:12px 14px;font-size:13px;line-height:1.7;}
+  .msg-user .msg-bubble{background:var(--accent);color:#0a0a0f;border-radius:var(--radius) var(--radius) 4px var(--radius);font-weight:500;max-width:70%;}
+  .msg-ai .msg-bubble{background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:4px var(--radius) var(--radius) var(--radius);width:100%;max-width:100%;white-space:pre-wrap;}
+
+  .order-confirm{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);padding:14px 16px;width:100%;}
+  .order-confirm.success{border-color:rgba(74,222,128,.4);}
+  .order-confirm.error{border-color:rgba(248,113,113,.4);}
+  .order-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-top:8px;}
+  .order-detail{font-size:11px;color:var(--text2);font-family:'Space Mono',monospace;}
+  .order-detail span{color:var(--text);}
+
+  .loading-msg{display:flex;align-items:center;gap:10px;color:var(--text3);font-size:13px;padding:4px 0;}
+  .spinner{width:15px;height:15px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .input-area{border-top:1px solid var(--border);padding:14px 20px;background:var(--bg);}
+  .input-row{display:flex;gap:8px;align-items:center;}
+  .input-wrap{flex:1;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);display:flex;align-items:center;padding:0 14px;transition:border-color .15s;}
+  .input-wrap:focus-within{border-color:var(--accent);}
+  .input-wrap input{flex:1;background:none;border:none;outline:none;color:var(--text);font-size:13px;font-family:'Space Grotesk',sans-serif;padding:12px 0;}
+  .input-wrap input::placeholder{color:var(--text3);}
+  .send-btn{width:42px;height:42px;background:var(--accent);border:none;border-radius:var(--radius-sm);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s;}
+  .send-btn:hover{background:var(--accent2);}
+  .send-btn:disabled{opacity:.4;cursor:not-allowed;}
+  .send-btn svg{width:16px;height:16px;fill:#0a0a0f;}
+  .input-hint{font-size:10px;color:var(--text3);margin-top:6px;font-family:'Space Mono',monospace;}
+
+  ::-webkit-scrollbar{width:3px;} ::-webkit-scrollbar-track{background:transparent;} ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+
+  .toast{position:fixed;bottom:20px;right:20px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:9px 14px;font-size:12px;color:var(--text);z-index:999;opacity:0;transform:translateY(8px);transition:all .2s;pointer-events:none;}
+  .toast.show{opacity:1;transform:translateY(0);}
+  .toast.success{border-color:var(--up);color:var(--up);}
+  .toast.error{border-color:var(--down);color:var(--down);}
+  .toast.warn{border-color:var(--warn);color:var(--warn);}
+
+  .tabs{display:flex;border-bottom:1px solid var(--border);padding:0 14px;}
+  .tab{font-size:11px;padding:10px 12px;cursor:pointer;color:var(--text3);border-bottom:2px solid transparent;transition:all .15s;font-family:'Space Mono',monospace;}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+  .tab-panel{display:none;} .tab-panel.active{display:block;}
+
+  .info-box{background:rgba(200,241,53,.05);border:1px solid rgba(200,241,53,.15);border-radius:var(--radius-sm);padding:8px 10px;font-size:10px;color:var(--text3);font-family:'Space Mono',monospace;line-height:1.6;margin-top:6px;}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="logo">
+    <div class="logo-mark">CM</div>
+    <div>
+      <div class="logo-text">CryptoMike Advisor</div>
+      <div class="logo-sub">análisis + trading · powered by Claude</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div id="exchBadge" class="exch-badge" style="display:none"></div>
+    <div>
+      <span class="status-dot" id="statusDot"></span>
+      <span class="status-text" id="statusText">sin conectar</span>
+    </div>
+  </div>
+</header>
+
+<div class="main">
+  <aside class="sidebar">
+
+    <!-- CONFIGURACIÓN -->
+    <div class="s-label">Configuración</div>
+    <div class="s-block">
+
+      <!-- ANTHROPIC -->
+      <div class="field">
+        <label>ANTHROPIC API KEY</label>
+        <input type="password" id="anthropicKey" placeholder="sk-ant-..." />
+      </div>
+
+      <!-- EXCHANGE SELECTOR -->
+      <div class="field">
+        <label>EXCHANGE PARA TRADING</label>
+        <div class="exchange-selector">
+          <div class="exch-btn active" id="btnBitunix" onclick="selectExchange('bitunix')">Bitunix</div>
+          <div class="exch-btn" id="btnBitmart" onclick="selectExchange('bitmart')">BitMart</div>
+        </div>
+      </div>
+
+      <!-- BITUNIX KEYS -->
+      <div class="api-panel active" id="panel-bitunix">
+        <div class="field"><label>BITUNIX API KEY</label><input type="password" id="bitunixKey" placeholder="api key..." /></div>
+        <div class="field"><label>BITUNIX SECRET KEY</label><input type="password" id="bitunixSecret" placeholder="secret key..." /></div>
+        <div class="info-box">Permisos necesarios: Trading ✓ · Retiro ✗</div>
+      </div>
+
+      <!-- BITMART KEYS -->
+      <div class="api-panel" id="panel-bitmart">
+        <div class="field"><label>BITMART API KEY</label><input type="password" id="bitmartKey" placeholder="api key..." /></div>
+        <div class="field"><label>BITMART SECRET KEY</label><input type="password" id="bitmartSecret" placeholder="secret key..." /></div>
+        <div class="field"><label>BITMART MEMO</label><input type="text" id="bitmartMemo" placeholder="memo (opcional)..." /></div>
+        <div class="info-box">Permisos necesarios: Trade ✓ · Withdraw ✗</div>
+      </div>
+
+      <div class="field" style="margin-top:8px;">
+        <label>RIESGO POR OPERACIÓN (%)</label>
+        <input type="number" id="riskPct" value="2" min="0.5" max="10" step="0.5" />
+      </div>
+      <button class="btn btn-accent" onclick="conectar()">Conectar</button>
+    </div>
+
+    <!-- ACTIVOS -->
+    <div class="s-label">Activos en vivo</div>
+    <div class="s-block">
+      <div class="asset-card" id="card-XLM" onclick="seleccionarActivo('XLM')">
+        <div class="asset-info">
+          <div class="asset-dot" style="background:#7b68ee"></div>
+          <div><div class="asset-symbol">XLM</div><div class="asset-name">Stellar Lumens</div></div>
+        </div>
+        <div style="text-align:right">
+          <div class="asset-price neutral" id="price-XLM">—</div>
+          <div class="asset-change neutral" id="change-XLM">—</div>
+        </div>
+      </div>
+      <div class="asset-card" id="card-XRP" onclick="seleccionarActivo('XRP')">
+        <div class="asset-info">
+          <div class="asset-dot" style="background:#00aae4"></div>
+          <div><div class="asset-symbol">XRP</div><div class="asset-name">Ripple</div></div>
+        </div>
+        <div style="text-align:right">
+          <div class="asset-price neutral" id="price-XRP">—</div>
+          <div class="asset-change neutral" id="change-XRP">—</div>
+        </div>
+      </div>
+      <div class="asset-card" id="card-HBAR" onclick="seleccionarActivo('HBAR')">
+        <div class="asset-info">
+          <div class="asset-dot" style="background:#8a8aff"></div>
+          <div><div class="asset-symbol">HBAR</div><div class="asset-name">Hedera</div></div>
+        </div>
+        <div style="text-align:right">
+          <div class="asset-price neutral" id="price-HBAR">—</div>
+          <div class="asset-change neutral" id="change-HBAR">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TABS -->
+    <div class="tabs">
+      <div class="tab active" onclick="sideTab(this,'tab-trading')">Trading</div>
+      <div class="tab" onclick="sideTab(this,'tab-analisis')">Análisis</div>
+      <div class="tab" onclick="sideTab(this,'tab-posiciones')">Posiciones</div>
+    </div>
+
+    <!-- TAB TRADING -->
+    <div id="tab-trading" class="tab-panel active">
+      <div class="s-label">Ejecutar orden</div>
+      <div class="s-block">
+        <div class="order-panel">
+          <div class="order-panel-title" id="orderPanelTitle">Bitunix — Futuros Perpetuos</div>
+          <div class="order-grid">
+            <div class="order-field"><label>ACTIVO</label><input type="text" id="oSymbol" value="XLM" /></div>
+            <div class="order-field"><label>CANTIDAD (USDT)</label><input type="number" id="oUsdt" placeholder="50" /></div>
+            <div class="order-field"><label>STOP LOSS $</label><input type="number" id="oSL" placeholder="0.000" step="0.0001" /></div>
+            <div class="order-field"><label>TAKE PROFIT $</label><input type="number" id="oTP" placeholder="0.000" step="0.0001" /></div>
+          </div>
+          <div class="lev-row">
+            <label>APALANCAMIENTO</label>
+            <input type="range" id="leverageSlider" min="1" max="100" value="10" oninput="document.getElementById('leverageVal').textContent=this.value+'x'" />
+            <div class="lev-val" id="leverageVal">10x</div>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-long" onclick="ejecutarOrden('LONG')">▲ LONG</button>
+            <button class="btn btn-short" onclick="ejecutarOrden('SHORT')">▼ SHORT</button>
+          </div>
+          <button class="btn btn-close" onclick="cerrarPosicion()">✕ Cerrar posición activa</button>
+        </div>
+        <div style="font-size:10px;color:var(--text3);line-height:1.5;font-family:'Space Mono',monospace;">
+          ⚠️ SL y TP se colocan automáticamente. Verifica los niveles antes de ejecutar.
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB ANÁLISIS -->
+    <div id="tab-analisis" class="tab-panel">
+      <div class="s-label">Comandos rápidos</div>
+      <div class="s-block">
+        <div class="cmd-grid">
+          <div class="cmd-btn" onclick="sendCmd('ANALIZA XLM')">ANALIZA XLM</div>
+          <div class="cmd-btn" onclick="sendCmd('ANALIZA XRP')">ANALIZA XRP</div>
+          <div class="cmd-btn" onclick="sendCmd('ANALIZA HBAR')">ANALIZA HBAR</div>
+          <div class="cmd-btn" onclick="sendCmd('SETUP XLM')">SETUP XLM</div>
+          <div class="cmd-btn" onclick="sendCmd('SETUP XRP')">SETUP XRP</div>
+          <div class="cmd-btn" onclick="sendCmd('SETUP HBAR')">SETUP HBAR</div>
+          <div class="cmd-btn" onclick="sendCmd('COMPARAR XLM XRP')">XLM vs XRP</div>
+          <div class="cmd-btn" onclick="sendCmd('COMPARAR XLM HBAR')">XLM vs HBAR</div>
+          <div class="cmd-btn" onclick="sendCmd('NOTICIAS XLM')">NOTICIAS XLM</div>
+          <div class="cmd-btn" onclick="sendCmd('NOTICIAS XRP')">NOTICIAS XRP</div>
+          <div class="cmd-btn" onclick="sendCmd('FUNDAMENTAL XLM')">FUND. XLM</div>
+          <div class="cmd-btn" onclick="sendCmd('FUNDAMENTAL HBAR')">FUND. HBAR</div>
+        </div>
+      </div>
+      <div class="s-label">Calculadora de riesgo</div>
+      <div class="s-block">
+        <div class="risk-grid">
+          <div class="field" style="margin:0"><label>Capital $</label><input type="number" id="rCapital" placeholder="1000" style="font-size:11px;padding:6px 7px" /></div>
+          <div class="field" style="margin:0"><label>Entrada $</label><input type="number" id="rEntrada" placeholder="0.202" step="0.0001" style="font-size:11px;padding:6px 7px" /></div>
+          <div class="field" style="margin:0"><label>Stop $</label><input type="number" id="rStop" placeholder="0.195" step="0.0001" style="font-size:11px;padding:6px 7px" /></div>
+        </div>
+        <button class="btn btn-ghost" style="margin-bottom:8px" onclick="calcularRiesgo()">Calcular tamaño posición</button>
+        <div id="riskResults" style="display:none">
+          <div class="risk-grid">
+            <div class="risk-result"><div class="risk-result-label">USDT riesgo</div><div class="risk-result-val" id="rUSDT">—</div></div>
+            <div class="risk-result"><div class="risk-result-label">Unidades</div><div class="risk-result-val" id="rUnidades">—</div></div>
+            <div class="risk-result"><div class="risk-result-label">Stop %</div><div class="risk-result-val" id="rStopPct">—</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB POSICIONES -->
+    <div id="tab-posiciones" class="tab-panel">
+      <div class="s-label">Posiciones abiertas</div>
+      <div class="s-block" id="posicionesContainer">
+        <div style="font-size:12px;color:var(--text3);text-align:center;padding:20px 0;font-family:'Space Mono',monospace;">Sin posiciones abiertas</div>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- CHAT -->
+  <div class="content">
+    <div class="chat-area" id="chatArea">
+      <div class="welcome" id="welcome">
+        <div class="welcome-icon">⚡</div>
+        <h2>CryptoMike Advisor</h2>
+        <p>Selecciona tu exchange, conecta tus API keys y genera análisis SMC completos. Ejecuta órdenes directamente desde aquí con SL y TP automáticos.</p>
+        <div class="welcome-cmds">
+          <div class="welcome-cmd" onclick="sendCmd('ANALIZA XLM')">ANALIZA XLM</div>
+          <div class="welcome-cmd" onclick="sendCmd('ANALIZA XRP')">ANALIZA XRP</div>
+          <div class="welcome-cmd" onclick="sendCmd('ANALIZA HBAR')">ANALIZA HBAR</div>
+          <div class="welcome-cmd" onclick="sendCmd('COMPARAR XLM XRP')">XLM vs XRP</div>
+          <div class="welcome-cmd" onclick="sendCmd('SETUP XLM')">SETUP XLM</div>
+        </div>
+      </div>
+    </div>
+    <div class="input-area">
+      <div class="input-row">
+        <div class="input-wrap">
+          <input type="text" id="userInput" placeholder="Escribe un comando o pregunta libre..." onkeydown="if(event.key==='Enter')enviar()" />
+        </div>
+        <button class="send-btn" id="sendBtn" onclick="enviar()">
+          <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        </button>
+      </div>
+      <div class="input-hint">ANALIZA · SETUP · COMPARAR · FUNDAMENTAL · NOTICIAS · RIESGO [capital] [entrada] [stop]</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let connected = false;
+let prices = { XLM: null, XRP: null, HBAR: null };
+let priceInterval = null;
+let conversationHistory = [];
+let selectedAsset = 'XLM';
+let activeExchange = 'bitunix';
+
+const SYSTEM_PROMPT = `Eres CryptoAdvisor, el asesor financiero personal de CryptoMike especializado en criptomonedas y trading.
+
+PERFIL DEL TRADER:
+- Activos: XLM/USDT, XRP/USDT, HBAR/USDT
+- Exchanges: Bitunix y BitMart (futuros perpetuos)
+- Estilo: Trading activo SMC/ICT
+- HTF estructura: 15M y 30M | LTF entrada: 1M y 5M
+- Duración máxima por operación: 2 horas
+- Riesgo por operación: 2% por defecto
+- Ratio mínimo R/B: 1:3
+- Contexto: bear market junio 2026, BTC ~$67.000, Fear & Greed 12
+
+CATALIZADORES FUNDAMENTALES:
+- XLM: DTCC tokenización 2027, ONU proyecto humanitario, MoneyGram MGUSD, Franklin Templeton $569M RWA, CME futuros, ISO 20022
+- XRP: ETF spot $1.2B AUM, CLARITY Act, caso SEC resuelto
+- HBAR: ETF Canary Nasdaq 549M, OKCoin Japón, Bank of England DLT, más txs que ETH+SOL, 85% supply emitido
+
+FORMATO OBLIGATORIO PARA ANÁLISIS COMPLETO:
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 ANÁLISIS [ACTIVO] | $[PRECIO] | [FECHA/HORA]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🌍 CONTEXTO FUNDAMENTAL
+• Catalizadores activos: [lista]
+• Sentimiento mercado: [Fear & Greed]
+• Correlación BTC: [impacto]
+• Sesgo fundamental: ALCISTA / BAJISTA / NEUTRAL
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📈 ESTRUCTURA SMC
+• Tendencia macro: [dirección]
+• Último BOS: $[nivel]
+• CHoCH reciente: [si existe]
+• Estructura: ALCISTA / BAJISTA / RANGO
+
+🎯 ZONAS DE INTERÉS
+• Order Block alcista: $[zona]
+• Order Block bajista: $[zona]
+• FVG bullish: $[rango]
+• FVG bearish: $[rango]
+• Liquidez BSL: $[niveles]
+• Liquidez SSL: $[niveles]
+• Soporte clave: $[precio]
+• Resistencia clave: $[precio]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚡ SETUP OPERATIVO
+• Setup válido: SÍ / NO / ESPERAR
+• Dirección: LONG / SHORT / SIN POSICIÓN
+• Zona entrada: $[precio] — $[precio]
+• Confirmación 5M: [patrón necesario]
+• Stop Loss: $[precio] ([justificación SMC])
+• TP1: $[precio] — ratio [X]:1
+• TP2: $[precio] — ratio [X]:1
+• TP3: $[precio] — ratio [X]:1
+• Gestión: 30% TP1, 40% TP2, 30% TP3
+• Invalidación: $[precio] cierre [temporalidad]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️ RESUMEN EJECUTIVO
+• Situación: [2-3 frases]
+• Nivel crítico: $[precio]
+• Acción: COMPRAR / VENDER / ESPERAR
+• Confianza: [X]/10
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ Solo educativo. No es asesoramiento financiero.
+
+COMANDOS: SETUP → solo setup+resumen | FUNDAMENTAL → solo fundamental | NOTICIAS → 5 catalizadores con impacto | COMPARAR → tabla + veredicto | RIESGO [capital] [entrada] [stop] → cálculo posición`;
+
+// ═══════════════════════════
+// EXCHANGE SELECTOR
+// ═══════════════════════════
+function selectExchange(ex) {
+  activeExchange = ex;
+  document.getElementById('btnBitunix').classList.toggle('active', ex === 'bitunix');
+  document.getElementById('btnBitmart').classList.toggle('active', ex === 'bitmart');
+  document.getElementById('panel-bitunix').classList.toggle('active', ex === 'bitunix');
+  document.getElementById('panel-bitmart').classList.toggle('active', ex === 'bitmart');
+  document.getElementById('orderPanelTitle').textContent = ex === 'bitunix' ? 'Bitunix — Futuros Perpetuos' : 'BitMart — Futuros Perpetuos';
+}
+
+// ═══════════════════════════
+// TABS
+// ═══════════════════════════
+function sideTab(el, panelId) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById(panelId).classList.add('active');
+}
+
+// ═══════════════════════════
+// CONEXIÓN
+// ═══════════════════════════
+async function conectar() {
+  const ak = document.getElementById('anthropicKey').value.trim();
+  if (!ak) { showToast('Introduce tu Anthropic API Key', 'error'); return; }
+  connected = true;
+  document.getElementById('statusDot').classList.add('live');
+  document.getElementById('statusText').textContent = 'conectado · precios en vivo';
+
+  const badge = document.getElementById('exchBadge');
+  badge.style.display = 'inline-flex';
+  badge.className = 'exch-badge ' + activeExchange;
+  badge.textContent = activeExchange === 'bitunix' ? '⚡ Bitunix' : '◆ BitMart';
+
+  showToast('Conectado a ' + (activeExchange === 'bitunix' ? 'Bitunix' : 'BitMart'), 'success');
+  await fetchPrices();
+  if (priceInterval) clearInterval(priceInterval);
+  priceInterval = setInterval(fetchPrices, 15000);
+  await fetchPositions();
+  setInterval(fetchPositions, 30000);
+}
+
+// ═══════════════════════════
+// PRECIOS
+// ═══════════════════════════
+async function fetchPrices() {
+  const map = { XLM: 'XLMUSDT', XRP: 'XRPUSDT', HBAR: 'HBARUSDT' };
+  for (const [sym, binSym] of Object.entries(map)) {
+    try {
+      const r = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${binSym}`);
+      if (!r.ok) continue;
+      const d = await r.json();
+      prices[sym] = parseFloat(d.lastPrice);
+      updatePriceCard(sym, prices[sym], parseFloat(d.priceChangePercent));
+    } catch(e) {}
+  }
+}
+
+function updatePriceCard(sym, price, change) {
+  const pe = document.getElementById('price-' + sym);
+  const ce = document.getElementById('change-' + sym);
+  if (!pe) return;
+  pe.textContent = '$' + price.toFixed(4);
+  pe.className = 'asset-price ' + (change >= 0 ? 'up' : 'down');
+  ce.textContent = (change >= 0 ? '+' : '') + change.toFixed(2) + '%';
+  ce.className = 'asset-change ' + (change >= 0 ? 'up' : 'down');
+}
+
+function seleccionarActivo(sym) {
+  selectedAsset = sym;
+  document.querySelectorAll('.asset-card').forEach(c => c.classList.remove('active'));
+  document.getElementById('card-' + sym).classList.add('active');
+  document.getElementById('oSymbol').value = sym;
+  const precio = prices[sym] ? '$' + prices[sym].toFixed(4) : '';
+  sendCmd('ANALIZA ' + sym + (precio ? ' ' + precio : ''));
+}
+
+// ═══════════════════════════
+// FIRMA HMAC (Bitunix)
+// ═══════════════════════════
+async function signBitunix(secret, timestamp, method, path, body = '') {
+  const msg = timestamp + method + path + body;
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(msg));
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function bitunixRequest(method, path, body = null) {
+  const apiKey = document.getElementById('bitunixKey').value.trim();
+  const secret = document.getElementById('bitunixSecret').value.trim();
+  if (!apiKey || !secret) { showToast('Introduce tu Bitunix API Key y Secret Key', 'error'); return null; }
+  const ts = Date.now().toString();
+  const bodyStr = body ? JSON.stringify(body) : '';
+  const sig = await signBitunix(secret, ts, method, path, bodyStr);
+  const headers = { 'Content-Type': 'application/json', 'api-key': apiKey, 'timestamp': ts, 'sign': sig };
+  try {
+    const r = await fetch('https://fapi.bitunix.com' + path, { method, headers, body: body ? bodyStr : undefined });
+    return await r.json();
+  } catch(e) { showToast('Error Bitunix: ' + e.message, 'error'); return null; }
+}
+
+// ═══════════════════════════
+// FIRMA HMAC (BitMart)
+// ═══════════════════════════
+async function signBitmart(secret, timestamp, memo, body = '') {
+  const msg = timestamp + '#' + memo + '#' + body;
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(msg));
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function bitmartRequest(method, path, body = null) {
+  const apiKey = document.getElementById('bitmartKey').value.trim();
+  const secret = document.getElementById('bitmartSecret').value.trim();
+  const memo = document.getElementById('bitmartMemo').value.trim() || '';
+  if (!apiKey || !secret) { showToast('Introduce tu BitMart API Key y Secret Key', 'error'); return null; }
+  const ts = Date.now().toString();
+  const bodyStr = body ? JSON.stringify(body) : '';
+  const sig = await signBitmart(secret, ts, memo, bodyStr);
+  const headers = { 'Content-Type': 'application/json', 'X-BM-KEY': apiKey, 'X-BM-TIMESTAMP': ts, 'X-BM-SIGN': sig };
+  if (memo) headers['X-BM-MEMO'] = memo;
+  try {
+    const r = await fetch('https://api-cloud.bitmart.com' + path, { method, headers, body: body ? bodyStr : undefined });
+    return await r.json();
+  } catch(e) { showToast('Error BitMart: ' + e.message, 'error'); return null; }
+}
+
+// ═══════════════════════════
+// EJECUTAR ORDEN
+// ═══════════════════════════
+async function ejecutarOrden(side) {
+  const sym = (document.getElementById('oSymbol').value.trim() || 'XLM').toUpperCase();
+  const usdt = parseFloat(document.getElementById('oUsdt').value);
+  const sl = parseFloat(document.getElementById('oSL').value);
+  const tp = parseFloat(document.getElementById('oTP').value);
+  const leverage = parseInt(document.getElementById('leverageSlider').value);
+
+  if (!usdt || usdt <= 0) { showToast('Introduce la cantidad en USDT', 'error'); return; }
+  if (!sl) { showToast('Introduce el Stop Loss', 'error'); return; }
+  if (!tp) { showToast('Introduce el Take Profit', 'error'); return; }
+
+  const precio = prices[sym] || 0;
+  if (!precio) { showToast('Precio no disponible. Conecta primero.', 'error'); return; }
+
+  let res = null;
+
+  if (activeExchange === 'bitunix') {
+    const symbol = sym + 'USDT';
+    const qty = (usdt * leverage / precio).toFixed(0);
+    await bitunixRequest('POST', '/api/v1/futures/position/set_leverage', { symbol, leverage, marginMode: 'ISOLATED' });
+    showToast('Enviando orden a Bitunix...', '');
+    res = await bitunixRequest('POST', '/api/v1/futures/order/create', {
+      symbol, qty, side: side === 'LONG' ? 'BUY' : 'SELL',
+      tradeSide: 'OPEN', orderType: 'MARKET', effect: 'GTC',
+      reduceOnly: false, tpPrice: tp.toString(), slPrice: sl.toString(),
+      tpStopType: 'MARK_PRICE', slStopType: 'MARK_PRICE'
+    });
+    mostrarResultadoOrden(res && res.code === 0, side, sym, usdt, precio, sl, tp, leverage, res?.msg);
+
+  } else {
+    // BitMart Futures
+    const symbol = sym + '_USDT';
+    const qty = Math.floor(usdt * leverage / precio);
+    showToast('Enviando orden a BitMart...', '');
+    // Set leverage first
+    await bitmartRequest('POST', '/contract/private/submit-leverage', { symbol, leverage: leverage.toString(), open_type: 'isolated' });
+    // Submit order
+    res = await bitmartRequest('POST', '/contract/private/submit-order', {
+      symbol, type: 'market', side: side === 'LONG' ? 1 : 4,
+      size: qty, preset_take_profit_price: tp.toString(),
+      preset_stop_loss_price: sl.toString()
+    });
+    const ok = res && res.code === 1000;
+    mostrarResultadoOrden(ok, side, sym, usdt, precio, sl, tp, leverage, res?.message);
+  }
+
+  await fetchPositions();
+}
+
+function mostrarResultadoOrden(ok, side, sym, usdt, precio, sl, tp, leverage, errMsg) {
+  ocultarWelcome();
+  const div = document.createElement('div');
+  div.className = 'msg msg-ai';
+  const exchName = activeExchange === 'bitunix' ? 'Bitunix' : 'BitMart';
+  if (ok) {
+    div.innerHTML = `<div class="msg-label">ORDEN EJECUTADA — ${exchName.toUpperCase()}</div>
+      <div class="order-confirm success">
+        <div style="font-size:13px;font-weight:600;color:var(--up);margin-bottom:8px;">✅ ${side} ${sym} — Orden enviada a ${exchName}</div>
+        <div class="order-detail-grid">
+          <div class="order-detail">Activo: <span>${sym}USDT</span></div>
+          <div class="order-detail">Dirección: <span>${side}</span></div>
+          <div class="order-detail">Capital: <span>$${usdt}</span></div>
+          <div class="order-detail">Apalancamiento: <span>${leverage}x</span></div>
+          <div class="order-detail">Precio entrada: <span>~$${precio.toFixed(4)}</span></div>
+          <div class="order-detail">Exchange: <span>${exchName}</span></div>
+          <div class="order-detail">Stop Loss: <span style="color:var(--down)">$${sl}</span></div>
+          <div class="order-detail">Take Profit: <span style="color:var(--up)">$${tp}</span></div>
+        </div>
+      </div>`;
+    showToast('Orden ejecutada en ' + exchName, 'success');
+  } else {
+    div.innerHTML = `<div class="msg-label">ERROR — ${exchName.toUpperCase()}</div>
+      <div class="order-confirm error">
+        <div style="font-size:13px;font-weight:600;color:var(--down);margin-bottom:6px;">❌ Error al ejecutar la orden en ${exchName}</div>
+        <div style="font-size:12px;color:var(--text2);font-family:'Space Mono',monospace;">${errMsg || 'Error desconocido'}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:8px;">Verifica que tu API Key tiene permisos de Trading y que tienes saldo en la cuenta de Futuros.</div>
+      </div>`;
+    showToast('Error: ' + (errMsg || 'desconocido'), 'error');
+  }
+  document.getElementById('chatArea').appendChild(div);
+  document.getElementById('chatArea').scrollTop = 99999;
+}
+
+// ═══════════════════════════
+// CERRAR POSICIÓN
+// ═══════════════════════════
+async function cerrarPosicion() {
+  const sym = (document.getElementById('oSymbol').value.trim() || 'XLM').toUpperCase();
+  showToast('Cerrando posición en ' + sym + '...', 'warn');
+  let res;
+  if (activeExchange === 'bitunix') {
+    res = await bitunixRequest('POST', '/api/v1/futures/position/close_all', { symbol: sym + 'USDT' });
+    if (res && res.code === 0) showToast('Posición cerrada en Bitunix', 'success');
+    else showToast('Error al cerrar: ' + (res?.msg || 'desconocido'), 'error');
+  } else {
+    res = await bitmartRequest('POST', '/contract/private/cancel-all-order', { symbol: sym + '_USDT' });
+    if (res && res.code === 1000) showToast('Posición cerrada en BitMart', 'success');
+    else showToast('Error al cerrar: ' + (res?.message || 'desconocido'), 'error');
+  }
+  await fetchPositions();
+}
+
+// ═══════════════════════════
+// POSICIONES
+// ═══════════════════════════
+async function fetchPositions() {
+  const container = document.getElementById('posicionesContainer');
+  let positions = [];
+
+  try {
+    if (activeExchange === 'bitunix') {
+      const res = await bitunixRequest('GET', '/api/v1/futures/position/get_pending_positions');
+      if (res && res.code === 0 && res.data?.length) positions = res.data.map(p => ({
+        symbol: p.symbol, side: p.side === 'BUY' ? 'LONG' : 'SHORT',
+        entry: parseFloat(p.avgPrice || 0), qty: p.qty,
+        liq: parseFloat(p.liquidationPrice || 0), lev: p.leverage,
+        pnl: parseFloat(p.unrealizedPNL || 0)
+      }));
+    } else {
+      const res = await bitmartRequest('GET', '/contract/private/position');
+      if (res && res.code === 1000 && res.data?.length) positions = res.data.map(p => ({
+        symbol: p.symbol, side: p.position_type === 1 ? 'LONG' : 'SHORT',
+        entry: parseFloat(p.avg_price || 0), qty: p.current_amount,
+        liq: parseFloat(p.liquidation_price || 0), lev: p.leverage,
+        pnl: parseFloat(p.unrealized_value || 0)
+      }));
+    }
+  } catch(e) {}
+
+  if (!positions.length) {
+    container.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:20px 0;font-family:\'Space Mono\',monospace;">Sin posiciones abiertas</div>';
+    return;
+  }
+  container.innerHTML = positions.map(p => {
+    const pnlClass = p.pnl >= 0 ? 'up' : 'down';
+    return `<div class="position-card">
+      <div class="pos-header">
+        <div class="pos-symbol">${p.symbol}</div>
+        <div class="pos-side ${p.side === 'LONG' ? 'pos-long' : 'pos-short'}">${p.side}</div>
+      </div>
+      <div class="pos-detail">Entrada: $${p.entry.toFixed(4)} · Qty: ${p.qty}<br>Liq: $${p.liq.toFixed(4)} · Lev: ${p.lev}x</div>
+      <div class="pos-pnl ${pnlClass}">${p.pnl >= 0 ? '+' : ''}$${p.pnl.toFixed(2)} USDT</div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════
+// CLAUDE
+// ═══════════════════════════
+async function sendCmd(cmd) {
+  let finalCmd = cmd;
+  const parts = cmd.split(' ');
+  if ((parts[0] === 'ANALIZA' || parts[0] === 'SETUP') && parts.length === 2) {
+    const sym = parts[1];
+    if (prices[sym]) finalCmd = `${parts[0]} ${sym} $${prices[sym].toFixed(4)}`;
+  }
+  await enviarMensaje(finalCmd);
+}
+
+async function enviar() {
+  const input = document.getElementById('userInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  await enviarMensaje(msg);
+}
+
+async function enviarMensaje(msg) {
+  const ak = document.getElementById('anthropicKey').value.trim();
+  if (!ak) { showToast('Introduce tu Anthropic API Key primero', 'error'); return; }
+  ocultarWelcome();
+  agregarMensaje('user', msg);
+  setLoading(true);
+  conversationHistory.push({ role: 'user', content: msg });
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': ak, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      body: JSON.stringify({ model: 'claude-3-5-sonnet-20241022', max_tokens: 2000, system: SYSTEM_PROMPT, messages: conversationHistory })
+    });
+    if (!r.ok) { const e = await r.json(); throw new Error(e.error?.message || 'Error de API'); }
+    const data = await r.json();
+    const reply = data.content[0].text;
+    conversationHistory.push({ role: 'assistant', content: reply });
+    const slMatch = reply.match(/Stop Loss[:\s]+\$?([\d.]+)/i);
+    const tpMatch = reply.match(/TP1[:\s]+\$?([\d.]+)/i);
+    if (slMatch) document.getElementById('oSL').value = slMatch[1];
+    if (tpMatch) document.getElementById('oTP').value = tpMatch[1];
+    agregarMensaje('ai', reply);
+  } catch(e) {
+    agregarMensaje('ai', '❌ Error: ' + e.message + '\n\nVerifica tu Anthropic API Key y que tienes créditos disponibles en console.anthropic.com');
+  }
+  setLoading(false);
+}
+
+// ═══════════════════════════
+// CALCULADORA
+// ═══════════════════════════
+function calcularRiesgo() {
+  const capital = parseFloat(document.getElementById('rCapital').value);
+  const entrada = parseFloat(document.getElementById('rEntrada').value);
+  const stop = parseFloat(document.getElementById('rStop').value);
+  const riskPct = parseFloat(document.getElementById('riskPct').value) || 2;
+  if (!capital || !entrada || !stop) { showToast('Rellena todos los campos', 'error'); return; }
+  const usdtRiesgo = capital * (riskPct / 100);
+  const stopPct = Math.abs((entrada - stop) / entrada * 100);
+  const unidades = usdtRiesgo / Math.abs(entrada - stop);
+  document.getElementById('rUSDT').textContent = '$' + usdtRiesgo.toFixed(2);
+  document.getElementById('rUnidades').textContent = unidades.toFixed(0);
+  document.getElementById('rStopPct').textContent = stopPct.toFixed(2) + '%';
+  document.getElementById('riskResults').style.display = 'block';
+  document.getElementById('oUsdt').value = usdtRiesgo.toFixed(2);
+}
+
+// ═══════════════════════════
+// UI
+// ═══════════════════════════
+function ocultarWelcome() { const w = document.getElementById('welcome'); if (w) w.style.display = 'none'; }
+
+function agregarMensaje(role, text) {
+  const chat = document.getElementById('chatArea');
+  const div = document.createElement('div');
+  div.className = 'msg msg-' + role;
+  const label = document.createElement('div');
+  label.className = 'msg-label';
+  label.textContent = role === 'user' ? 'TÚ' : 'CLAUDE AI';
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  bubble.textContent = text;
+  div.appendChild(label);
+  div.appendChild(bubble);
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+let loadingEl = null;
+function setLoading(state) {
+  document.getElementById('sendBtn').disabled = state;
+  document.getElementById('userInput').disabled = state;
+  if (state) {
+    const chat = document.getElementById('chatArea');
+    loadingEl = document.createElement('div');
+    loadingEl.className = 'loading-msg';
+    loadingEl.innerHTML = '<div class="spinner"></div><span>Analizando el mercado...</span>';
+    chat.appendChild(loadingEl);
+    chat.scrollTop = chat.scrollHeight;
+  } else { if (loadingEl) { loadingEl.remove(); loadingEl = null; } }
+}
+
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + type + ' show';
+  setTimeout(() => t.className = 'toast', 2800);
+}
+</script>
+</body>
+</html>
