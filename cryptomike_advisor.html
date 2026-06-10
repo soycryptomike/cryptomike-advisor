@@ -561,29 +561,23 @@ async function bitunixRequest(method, path, body = null) {
 }
 
 // ═══════════════════════════
-// FIRMA HMAC (BitMart)
+// BITMART VIA SERVIDOR RENDER
 // ═══════════════════════════
-async function signBitmart(secret, timestamp, memo, body = '') {
-  const msg = timestamp + '#' + memo + '#' + body;
-  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(msg));
-  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
+const RENDER_SERVER = 'https://cryptomike-server.onrender.com';
 
-async function bitmartRequest(method, path, body = null) {
+async function bitmartRequest(endpoint, body = null) {
   const apiKey = document.getElementById('bitmartKey').value.trim();
   const secret = document.getElementById('bitmartSecret').value.trim();
   const memo = document.getElementById('bitmartMemo').value.trim() || '';
   if (!apiKey || !secret) { showToast('Introduce tu BitMart API Key y Secret Key', 'error'); return null; }
-  const ts = Date.now().toString();
-  const bodyStr = body ? JSON.stringify(body) : '';
-  const sig = await signBitmart(secret, ts, memo, bodyStr);
-  const headers = { 'Content-Type': 'application/json', 'X-BM-KEY': apiKey, 'X-BM-TIMESTAMP': ts, 'X-BM-SIGN': sig };
-  if (memo) headers['X-BM-MEMO'] = memo;
   try {
-    const r = await fetch('https://api-cloud.bitmart.com' + path, { method, headers, body: body ? bodyStr : undefined });
+    const r = await fetch(`${RENDER_SERVER}/${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey, secret, memo, ...body })
+    });
     return await r.json();
-  } catch(e) { showToast('Error BitMart: ' + e.message, 'error'); return null; }
+  } catch(e) { showToast('Error servidor BitMart: ' + e.message, 'error'); return null; }
 }
 
 // ═══════════════════════════
@@ -619,18 +613,12 @@ async function ejecutarOrden(side) {
     mostrarResultadoOrden(res && res.code === 0, side, sym, usdt, precio, sl, tp, leverage, res?.msg);
 
   } else {
-    // BitMart Futures
+    // BitMart Futures via Render Server
     const symbol = sym + '_USDT';
     const qty = Math.floor(usdt * leverage / precio);
     showToast('Enviando orden a BitMart...', '');
-    // Set leverage first
-    await bitmartRequest('POST', '/contract/private/submit-leverage', { symbol, leverage: leverage.toString(), open_type: 'isolated' });
-    // Submit order
-    res = await bitmartRequest('POST', '/contract/private/submit-order', {
-      symbol, type: 'market', side: side === 'LONG' ? 1 : 4,
-      size: qty, preset_take_profit_price: tp.toString(),
-      preset_stop_loss_price: sl.toString()
-    });
+    await bitmartRequest('leverage', { symbol, leverage, openType: 'isolated' });
+    res = await bitmartRequest('order', { symbol, side, size: qty, sl, tp });
     const ok = res && res.code === 1000;
     mostrarResultadoOrden(ok, side, sym, usdt, precio, sl, tp, leverage, res?.message);
   }
@@ -684,7 +672,7 @@ async function cerrarPosicion() {
     if (res && res.code === 0) showToast('Posición cerrada en Bitunix', 'success');
     else showToast('Error al cerrar: ' + (res?.msg || 'desconocido'), 'error');
   } else {
-    res = await bitmartRequest('POST', '/contract/private/cancel-all-order', { symbol: sym + '_USDT' });
+    res = await bitmartRequest('close', { symbol: sym + '_USDT' });
     if (res && res.code === 1000) showToast('Posición cerrada en BitMart', 'success');
     else showToast('Error al cerrar: ' + (res?.message || 'desconocido'), 'error');
   }
@@ -708,7 +696,7 @@ async function fetchPositions() {
         pnl: parseFloat(p.unrealizedPNL || 0)
       }));
     } else {
-      const res = await bitmartRequest('GET', '/contract/private/position');
+      const res = await bitmartRequest('positions', {});
       if (res && res.code === 1000 && res.data?.length) positions = res.data.map(p => ({
         symbol: p.symbol, side: p.position_type === 1 ? 'LONG' : 'SHORT',
         entry: parseFloat(p.avg_price || 0), qty: p.current_amount,
