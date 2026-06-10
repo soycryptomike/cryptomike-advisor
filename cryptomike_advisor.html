@@ -537,27 +537,20 @@ function seleccionarActivo(sym) {
 }
 
 // ═══════════════════════════
-// FIRMA HMAC (Bitunix)
+// BITUNIX VIA SERVIDOR RENDER
 // ═══════════════════════════
-async function signBitunix(secret, timestamp, method, path, body = '') {
-  const msg = timestamp + method + path + body;
-  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(msg));
-  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-async function bitunixRequest(method, path, body = null) {
+async function bitunixRequest(endpoint, body = null) {
   const apiKey = document.getElementById('bitunixKey').value.trim();
   const secret = document.getElementById('bitunixSecret').value.trim();
-  if (!apiKey || !secret) { showToast('Introduce tu Bitunix API Key y Secret Key', 'error'); return null; }
-  const ts = Date.now().toString();
-  const bodyStr = body ? JSON.stringify(body) : '';
-  const sig = await signBitunix(secret, ts, method, path, bodyStr);
-  const headers = { 'Content-Type': 'application/json', 'api-key': apiKey, 'timestamp': ts, 'sign': sig };
+  if (!apiKey || !secret) { showToast('Introduce tu Bitunix API Key y Secret', 'error'); return null; }
   try {
-    const r = await fetch('https://fapi.bitunix.com' + path, { method, headers, body: body ? bodyStr : undefined });
+    const r = await fetch(`${RENDER_SERVER}/bitunix/${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey, secret, ...body })
+    });
     return await r.json();
-  } catch(e) { showToast('Error Bitunix: ' + e.message, 'error'); return null; }
+  } catch(e) { showToast('Error servidor Bitunix: ' + e.message, 'error'); return null; }
 }
 
 // ═══════════════════════════
@@ -601,15 +594,11 @@ async function ejecutarOrden(side) {
 
   if (activeExchange === 'bitunix') {
     const symbol = sym + 'USDT';
-    const qty = (usdt * leverage / precio).toFixed(0);
-    await bitunixRequest('POST', '/api/v1/futures/position/set_leverage', { symbol, leverage, marginMode: 'ISOLATED' });
+    const qty = Math.floor(usdt * leverage / precio);
+    if (qty <= 0) { showToast('Cantidad demasiado pequeña. Aumenta el USDT.', 'error'); setLoading(false); return; }
+    await bitunixRequest('leverage', { symbol, leverage });
     showToast('Enviando orden a Bitunix...', '');
-    res = await bitunixRequest('POST', '/api/v1/futures/order/create', {
-      symbol, qty, side: side === 'LONG' ? 'BUY' : 'SELL',
-      tradeSide: 'OPEN', orderType: 'MARKET', effect: 'GTC',
-      reduceOnly: false, tpPrice: tp.toString(), slPrice: sl.toString(),
-      tpStopType: 'MARK_PRICE', slStopType: 'MARK_PRICE'
-    });
+    res = await bitunixRequest('order', { symbol, side, qty, sl, tp });
     mostrarResultadoOrden(res && res.code === 0, side, sym, usdt, precio, sl, tp, leverage, res?.msg);
 
   } else {
@@ -668,7 +657,7 @@ async function cerrarPosicion() {
   showToast('Cerrando posición en ' + sym + '...', 'warn');
   let res;
   if (activeExchange === 'bitunix') {
-    res = await bitunixRequest('POST', '/api/v1/futures/position/close_all', { symbol: sym + 'USDT' });
+    res = await bitunixRequest('close', { symbol: sym + 'USDT' });
     if (res && res.code === 0) showToast('Posición cerrada en Bitunix', 'success');
     else showToast('Error al cerrar: ' + (res?.msg || 'desconocido'), 'error');
   } else {
@@ -688,7 +677,7 @@ async function fetchPositions() {
 
   try {
     if (activeExchange === 'bitunix') {
-      const res = await bitunixRequest('GET', '/api/v1/futures/position/get_pending_positions');
+      const res = await bitunixRequest('positions', {});
       if (res && res.code === 0 && res.data?.length) positions = res.data.map(p => ({
         symbol: p.symbol, side: p.side === 'BUY' ? 'LONG' : 'SHORT',
         entry: parseFloat(p.avgPrice || 0), qty: p.qty,
